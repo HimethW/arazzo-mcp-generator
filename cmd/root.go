@@ -24,23 +24,23 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wso2/arazzo-mcp-generator/cmd/inspect"
-	mcpserver "github.com/wso2/arazzo-mcp-generator/cmd/mcp_server"
+	"github.com/wso2/arazzo-mcp-generator/cmd/serve"
 	"github.com/wso2/arazzo-mcp-generator/cmd/validate"
 	"github.com/wso2/arazzo-mcp-generator/cmd/visualize"
 	"github.com/wso2/arazzo-mcp-generator/internal/metadata"
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "arazzo-mcp-gen",
+	Use:     "azctl",
 	Version: metadata.Version,
-	Short:   "Generate MCP servers from Arazzo specifications",
-	Long:    `arazzo-mcp-gen is a standalone CLI tool for generating Dockerized Python MCP servers directly from an Arazzo specification and its referenced OpenAPI spec files.`,
+	Short:   "Arazzo-based MCP server generator and runner",
+	Long:    `azctl is a standalone CLI tool for validating, visualizing, and running Arazzo specifications as MCP servers using a high-performance Go-based runner.`,
 }
 
 func init() {
 	// Disable Cobra's default `completion` subcommand so it doesn't appear in help output.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	mcpserver.Register(rootCmd)
+	serve.Register(rootCmd)
 	inspect.Register(rootCmd)
 	validate.Register(rootCmd)
 	visualize.Register(rootCmd)
