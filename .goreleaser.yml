@@ -1,15 +1,15 @@
 version: 2
 
-project_name: arazzo-mcp-gen
+project_name: azctl
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: arazzo-mcp-gen #unique name for the tool
+  - id: azctl #unique name for the tool
     binary: >-
-      arazzo-mcp-gen {{- if ne .Os "windows" }}-{{ .Os }}-{{ .Arch }}{{ end }}
+      azctl {{- if ne .Os "windows" }}-{{ .Os }}-{{ .Arch }}{{ end }}
     main: . #look in the root dir to get the main.go to start the compilation
     env:
       - CGO_ENABLED=0 #env variables to be set
