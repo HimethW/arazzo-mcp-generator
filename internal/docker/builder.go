@@ -386,7 +386,7 @@ func printSummary(imageName string, port int, outputDir, buildDir, runCmd string
 		fmt.Println()
 		fmt.Printf("  Artifacts saved to: %s\n", buildDir)
 		fmt.Printf("    Dockerfile        %s/Dockerfile\n", buildDir)
-		fmt.Printf("    Linux binary      %s/arazzo-mcp-gen\n", buildDir)
+		fmt.Printf("    Linux binary      %s/azctl\n", buildDir)
 		fmt.Printf("    Workspace files   %s/workspace/\n", buildDir)
 		fmt.Printf("    Run command       %s/run-command.txt\n", buildDir)
 	}
