@@ -24,15 +24,15 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/wso2/arazzo-mcp-generator/internal/generator"
 	"github.com/wso2/arazzo-mcp-generator/internal/inspector"
+	"github.com/wso2/arazzo-mcp-generator/internal/utils"
 )
 
 const InspectCmdExample = `# Inspect a folder (auto-detects the Arazzo file)
-arazzo-mcp-gen inspect -f ./my-arazzo-folder
+azctl inspect -f ./my-arazzo-folder
 
 # Inspect a single Arazzo file directly
-arazzo-mcp-gen inspect -f ./workflow.yaml`
+azctl inspect -f ./workflow.yaml`
 
 var inspectPath string
 
@@ -78,8 +78,8 @@ func runInspectCommand() error {
 	if inspectPath == "" {
 		return fmt.Errorf("-f flag is required\n\n" +
 			"Examples:\n" +
-			"  arazzo-mcp-gen inspect -f ./my-arazzo-folder\n" +
-			"  arazzo-mcp-gen inspect -f ./workflow.yaml")
+			"  azctl inspect -f ./my-arazzo-folder\n" +
+			"  azctl inspect -f ./workflow.yaml")
 	}
 
 	abs, err := filepath.Abs(inspectPath)
@@ -96,7 +96,7 @@ func runInspectCommand() error {
 
 	var filePath string
 	if info.IsDir() {
-		found, err := generator.FindArazzoFile(abs)
+		found, err := utils.FindArazzoFile(abs)
 		if err != nil {
 			return err
 		}

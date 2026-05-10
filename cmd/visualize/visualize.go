@@ -24,21 +24,21 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/wso2/arazzo-mcp-generator/internal/generator"
+	"github.com/wso2/arazzo-mcp-generator/internal/utils"
 	"github.com/wso2/arazzo-mcp-generator/internal/visualizer"
 )
 
 const VisualizeCmdExample = `# Visualize a folder (auto-detects the Arazzo file)
-arazzo-mcp-gen visualize -f ./my-arazzo-folder
+azctl visualize -f ./my-arazzo-folder
 
 # Visualize a single Arazzo file directly
-arazzo-mcp-gen visualize -f ./workflow.yaml
+azctl visualize -f ./workflow.yaml
 
 # Save the diagram to a Markdown file (auto-wraps in code fences)
-arazzo-mcp-gen visualize -f ./workflow.yaml -o diagram.md
+azctl visualize -f ./workflow.yaml -o diagram.md
 
 # Save raw Mermaid syntax to a .mmd file
-arazzo-mcp-gen visualize -f ./my-arazzo-folder -o flow.mmd`
+azctl visualize -f ./my-arazzo-folder -o flow.mmd`
 
 var (
 	vizPath   string
@@ -92,8 +92,8 @@ func runVisualizeCommand() error {
 	if vizPath == "" {
 		return fmt.Errorf("-f flag is required\n\n" +
 			"Examples:\n" +
-			"  arazzo-mcp-gen visualize -f ./my-arazzo-folder\n" +
-			"  arazzo-mcp-gen visualize -f ./workflow.yaml")
+			"  azctl visualize -f ./my-arazzo-folder\n" +
+			"  azctl visualize -f ./workflow.yaml")
 	}
 
 	abs, err := filepath.Abs(vizPath)
@@ -110,7 +110,7 @@ func runVisualizeCommand() error {
 
 	var filePath string
 	if info.IsDir() {
-		found, err := generator.FindArazzoFile(abs)
+		found, err := utils.FindArazzoFile(abs)
 		if err != nil {
 			return err
 		}

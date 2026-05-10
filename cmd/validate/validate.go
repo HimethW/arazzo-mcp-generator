@@ -25,21 +25,21 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/wso2/arazzo-mcp-generator/internal/generator"
+	"github.com/wso2/arazzo-mcp-generator/internal/utils"
 	"github.com/wso2/arazzo-mcp-generator/internal/validator"
 )
 
 const ValidateCmdExample = `# Validate a folder (auto-detects the Arazzo file)
-arazzo-mcp-gen validate -f ./my-arazzo-folder
+azctl validate -f ./my-arazzo-folder
 
 # Validate a single Arazzo file
-arazzo-mcp-gen validate -f ./workflow.yaml
+azctl validate -f ./workflow.yaml
 
 # Validate and also check that remote source URLs are accessible
-arazzo-mcp-gen validate -f ./my-arazzo-folder --check-remote
+azctl validate -f ./my-arazzo-folder --check-remote
 
 # Treat warnings as errors (useful for CI pipelines)
-arazzo-mcp-gen validate -f ./my-arazzo-folder --strict`
+azctl validate -f ./my-arazzo-folder --strict`
 
 var (
 	validatePath        string
@@ -102,8 +102,8 @@ func runValidateCommand() error {
 	if validatePath == "" {
 		return fmt.Errorf("-f flag is required\n\n" +
 			"Examples:\n" +
-			"  arazzo-mcp-gen validate -f ./my-arazzo-folder\n" +
-			"  arazzo-mcp-gen validate -f ./workflow.yaml")
+			"  azctl validate -f ./my-arazzo-folder\n" +
+			"  azctl validate -f ./workflow.yaml")
 	}
 
 	abs, err := filepath.Abs(validatePath)
@@ -122,7 +122,7 @@ func runValidateCommand() error {
 	var folderPath string
 
 	if info.IsDir() {
-		found, err := generator.FindArazzoFile(abs)
+		found, err := utils.FindArazzoFile(abs)
 		if err != nil {
 			return err
 		}
@@ -170,8 +170,8 @@ func runValidateCommand() error {
 
 	// Print helpful suggestion if validation passed
 	if !result.HasErrors() {
-		fmt.Println("💡 Tip: Run 'arazzo-mcp-gen mcp-server generate -f " +
-			formatFolderHint(folderPath) + "' to build an MCP server from this spec.")
+		fmt.Println("💡 Tip: Run 'azctl serve -f " +
+			formatFolderHint(folderPath) + "' to host this Arazzo spec as an MCP server.")
 	}
 
 	return nil
