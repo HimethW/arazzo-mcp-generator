@@ -20,7 +20,7 @@
 // When releasing a new version, update the Version constant below.
 package metadata
 
-// Version is the current version of arazzo-mcp-gen.
+// Version is the current version of azctl.
 // It defaults to "v1.0.0" locally and is overridden at build time via
 // -ldflags "-X github.com/wso2/arazzo-mcp-generator/internal/metadata.Version=<tag>".
 var Version = "v1.0.0"

@@ -57,7 +57,7 @@ func BuildImage(cfg BuildConfig) error {
 	moduleRoot, err := findModuleRoot()
 	if err != nil {
 		return fmt.Errorf(
-			"cannot locate Go module root: %w\n\nRun 'arazzo-mcp-gen serve --docker' from the CLI source directory (the folder containing go.mod)",
+			"cannot locate Go module root: %w\n\nRun 'azctl serve --docker' from the CLI source directory (the folder containing go.mod)",
 			err,
 		)
 	}
@@ -75,7 +75,7 @@ func BuildImage(cfg BuildConfig) error {
 
 	// ── 5. Cross-compile a CGO-free Linux binary into the build context ──────
 	log.Printf("Cross-compiling linux/%s binary...", targetArch())
-	linuxBin := filepath.Join(buildDir, "arazzo-mcp-gen")
+	linuxBin := filepath.Join(buildDir, "azctl")
 	if err := crossCompileLinux(moduleRoot, linuxBin); err != nil {
 		return fmt.Errorf("cross-compilation failed: %w", err)
 	}
@@ -289,15 +289,15 @@ func generateDockerfile(arazzoFileName string, port int) string {
 	b.WriteString("    && apt-get install -y --no-install-recommends ca-certificates \\\n")
 	b.WriteString("    && rm -rf /var/lib/apt/lists/*\n")
 	b.WriteString("WORKDIR /app\n")
-	b.WriteString("COPY arazzo-mcp-gen /usr/local/bin/arazzo-mcp-gen\n")
-	b.WriteString("RUN chmod +x /usr/local/bin/arazzo-mcp-gen\n")
+	b.WriteString("COPY azctl /usr/local/bin/azctl\n")
+	b.WriteString("RUN chmod +x /usr/local/bin/azctl\n")
 	b.WriteString("COPY workspace/ /app/workspace/\n")
 	b.WriteString(fmt.Sprintf("EXPOSE %d\n", port))
 	// Use ENTRYPOINT to fix the required arguments.
 	// This ensures that even if the user passes extra flags to "docker run",
 	// the container always knows which Arazzo file to use.
 	b.WriteString(fmt.Sprintf(
-		"ENTRYPOINT [\"arazzo-mcp-gen\", \"serve\", \"-f\", \"/app/workspace/%s\", \"-p\", \"%d\"]\n",
+		"ENTRYPOINT [\"azctl\", \"serve\", \"-f\", \"/app/workspace/%s\", \"-p\", \"%d\"]\n",
 		arazzoFileName, port,
 	))
 	return b.String()
