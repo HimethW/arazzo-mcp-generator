@@ -265,6 +265,8 @@ azctl serve -f <file-or-folder> [flags]
 |------|-------|-------------|---------|
 | `--file` | `-f` | Path to an Arazzo file or folder | — |
 | `--port` | `-p` | Port the MCP server listens on | `8080` |
+| `--docker` | | Package the server into a Docker image instead of starting it locally | `false` |
+| `--output-dir` | `-o` | Keep Docker build artifacts in this folder (only with `--docker`) | — |
 
 **Examples**
 
@@ -382,10 +384,23 @@ The server is now live at `http://localhost:8080/mcp`. To connect it to an MCP c
 
 ## Dockerization
 
-You can run `azctl` inside Docker to encapsulate your environment.
+Use the `--docker` flag to cross-compile the server and package it into a self-contained Docker image.
+
+> **Note:** `--docker` requires a working Go toolchain and the `go.mod` file to be reachable from the current directory.
+> It is designed for development workflows, not for downloaded release binaries.
 
 ```bash
-docker run -p 8080:8080 -v $(pwd):/workspace arazzo-mcp-generator serve -f /workspace
+# Build a Docker image from an Arazzo file
+azctl serve --docker -f workflow.yaml
+
+# Optionally keep the build artifacts for inspection
+azctl serve --docker -f workflow.yaml -o ./docker-output
+```
+
+Once the image is built, the CLI prints the exact `docker run` command to use:
+
+```bash
+docker run --rm -p 8080:8080 <image-name>
 ```
 
 ---
