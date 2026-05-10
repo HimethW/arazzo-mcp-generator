@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package generator
+package utils
 
 import (
 	"fmt"
