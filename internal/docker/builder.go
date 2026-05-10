@@ -1,7 +1,8 @@
 // Package docker implements the --docker packaging mode for the Arazzo MCP generator.
-// It cross-compiles a Linux binary, assembles a self-contained Docker build
-// context, builds the image, and prints the resulting "docker run" command.
-// No server is started; the function returns immediately after the build.
+// It assembles a self-contained Docker build context — copying the running binary
+// directly on Linux, or embedding a RUN curl download step on macOS/Windows so no
+// Go toolchain is required on the host. No server is started; the function returns
+// immediately after the build.
 package docker
 
 import (
@@ -16,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/wso2/arazzo-mcp-generator/internal/loader"
+	"github.com/wso2/arazzo-mcp-generator/internal/metadata"
 	"github.com/wso2/arazzo-mcp-generator/internal/models"
 )
 
@@ -53,16 +55,7 @@ func BuildImage(cfg BuildConfig) error {
 		return fmt.Errorf("failed to parse arazzo file: %w", err)
 	}
 
-	// ── 3. Locate the Go module root for cross-compilation ───────────────────
-	moduleRoot, err := findModuleRoot()
-	if err != nil {
-		return fmt.Errorf(
-			"cannot locate Go module root: %w\n\nRun 'azctl serve --docker' from the CLI source directory (the folder containing go.mod)",
-			err,
-		)
-	}
-
-	// ── 4. Resolve the Docker build context directory ────────────────────────
+	// ── 3. Resolve the Docker build context directory ────────────────────────
 	// When -o/--output-dir is provided we write artifacts into that folder and
 	// keep them after the build so the user can inspect or reuse them.
 	// When it is absent we create a temporary directory that is cleaned up
@@ -73,14 +66,25 @@ func BuildImage(cfg BuildConfig) error {
 	}
 	defer cleanup()
 
-	// ── 5. Cross-compile a CGO-free Linux binary into the build context ──────
-	log.Printf("Cross-compiling linux/%s binary...", targetArch())
-	linuxBin := filepath.Join(buildDir, "azctl")
-	if err := crossCompileLinux(moduleRoot, linuxBin); err != nil {
-		return fmt.Errorf("cross-compilation failed: %w", err)
+	// ── 4. Obtain the Linux binary for the Docker image ──────────────────────
+	// On Linux the running process is already a Linux ELF — copy it directly.
+	// On macOS/Windows we embed a RUN curl step in the Dockerfile that downloads
+	// the matching release binary, so no Go toolchain is required on the host.
+	useLocalBinary := runtime.GOOS == "linux"
+	if useLocalBinary {
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("cannot locate running binary: %w", err)
+		}
+		log.Println("Bundling current binary into Docker image...")
+		if err := copyFile(exe, filepath.Join(buildDir, "azctl")); err != nil {
+			return fmt.Errorf("failed to copy binary into build context: %w", err)
+		}
+	} else {
+		log.Printf("azctl linux/%s will be downloaded from GitHub releases during docker build...", targetArch())
 	}
 
-	// ── 6. Assemble the workspace directory inside the build context ─────────
+	// ── 5. Assemble the workspace directory inside the build context ─────────
 	// Contains the Arazzo file and every local (non-HTTP) source description.
 	workspaceDir := filepath.Join(buildDir, "workspace")
 	// Remove and recreate workspace/ so stale files from previous -o runs
@@ -103,7 +107,7 @@ func BuildImage(cfg BuildConfig) error {
 
 	// ── 7. Write the Dockerfile ───────────────────────────────────────────────
 	imageName := sanitizeImageName(doc.Info.Title)
-	dockerfile := generateDockerfile(arazzoFileName, cfg.Port)
+	dockerfile := generateDockerfile(arazzoFileName, cfg.Port, useLocalBinary)
 	if err := os.WriteFile(filepath.Join(buildDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
@@ -127,7 +131,7 @@ func BuildImage(cfg BuildConfig) error {
 	}
 
 	// ── 10. Print the success summary ─────────────────────────────────────────
-	printSummary(imageName, cfg.Port, cfg.OutputDir, buildDir, runCmd)
+	printSummary(imageName, cfg.Port, cfg.OutputDir, buildDir, runCmd, useLocalBinary)
 	return nil
 }
 
@@ -186,41 +190,6 @@ func checkDockerAvailable() error {
 	return nil
 }
 
-// findModuleRoot walks upward from the current working directory to find a
-// go.mod file. If CWD yields no result it retries from the executable path.
-func findModuleRoot() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	if root := walkUpForGoMod(cwd); root != "" {
-		return root, nil
-	}
-	// Retry from the directory containing the running binary.
-	if exe, err := os.Executable(); err == nil {
-		if root := walkUpForGoMod(filepath.Dir(exe)); root != "" {
-			return root, nil
-		}
-	}
-	return "", fmt.Errorf("go.mod not found starting from %s", cwd)
-}
-
-// walkUpForGoMod ascends the directory tree starting at start and returns the
-// first directory that contains a go.mod file. Returns "" if none is found.
-func walkUpForGoMod(start string) string {
-	dir := filepath.Clean(start)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "" // reached filesystem root
-		}
-		dir = parent
-	}
-}
-
 // targetArch returns the GOARCH value for the Linux binary.
 // Mac/ARM hosts target arm64 so the image runs natively; everything else gets amd64.
 func targetArch() string {
@@ -228,21 +197,6 @@ func targetArch() string {
 		return "arm64"
 	}
 	return "amd64"
-}
-
-// crossCompileLinux builds a CGO-free Linux binary of the CLI at outPath.
-// The build target is "." because main.go lives at the module root.
-func crossCompileLinux(moduleRoot, outPath string) error {
-	cmd := exec.Command("go", "build", "-o", outPath, ".")
-	cmd.Dir = moduleRoot
-	cmd.Env = append(os.Environ(),
-		"GOOS=linux",
-		"GOARCH="+targetArch(),
-		"CGO_ENABLED=0",
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // copyLocalSourceDescriptions copies every source description file referenced
@@ -280,17 +234,39 @@ func copyLocalSourceDescriptions(doc *models.ArazzoDoc, srcDir, dstDir string) e
 }
 
 // generateDockerfile returns the Dockerfile content for the Arazzo server image.
-// The image uses a minimal Debian slim base and runs the CLI binary directly,
-// so no language runtime or extra tooling is required inside the container.
-func generateDockerfile(arazzoFileName string, port int) string {
+// When localBinary is true the binary is COPYed from the build context (Linux host).
+// When false, a RUN curl step downloads the matching release binary from GitHub
+// releases, so no Go toolchain is required on macOS or Windows hosts.
+func generateDockerfile(arazzoFileName string, port int, localBinary bool) string {
 	var b strings.Builder
 	b.WriteString("FROM debian:bookworm-slim\n")
 	b.WriteString("RUN apt-get update \\\n")
-	b.WriteString("    && apt-get install -y --no-install-recommends ca-certificates \\\n")
+	if localBinary {
+		b.WriteString("    && apt-get install -y --no-install-recommends ca-certificates \\\n")
+	} else {
+		b.WriteString("    && apt-get install -y --no-install-recommends ca-certificates curl \\\n")
+	}
 	b.WriteString("    && rm -rf /var/lib/apt/lists/*\n")
 	b.WriteString("WORKDIR /app\n")
-	b.WriteString("COPY azctl /usr/local/bin/azctl\n")
-	b.WriteString("RUN chmod +x /usr/local/bin/azctl\n")
+	if localBinary {
+		b.WriteString("COPY azctl /usr/local/bin/azctl\n")
+		b.WriteString("RUN chmod +x /usr/local/bin/azctl\n")
+	} else {
+		arch := targetArch()
+		archiveArch := "x86_64"
+		if arch == "arm64" {
+			archiveArch = "arm64"
+		}
+		binName := fmt.Sprintf("azctl-linux-%s", arch)
+		url := fmt.Sprintf(
+			"https://github.com/HimethW/arazzo-mcp-generator/releases/download/%s/azctl_Linux_%s.tar.gz",
+			metadata.Version, archiveArch,
+		)
+		b.WriteString(fmt.Sprintf(
+			"RUN curl -fsSL %s | tar -xz %s \\\n    && mv %s /usr/local/bin/azctl \\\n    && chmod +x /usr/local/bin/azctl\n",
+			url, binName, binName,
+		))
+	}
 	b.WriteString("COPY workspace/ /app/workspace/\n")
 	b.WriteString(fmt.Sprintf("EXPOSE %d\n", port))
 	// Use ENTRYPOINT to fix the required arguments.
@@ -373,7 +349,7 @@ func buildRunCommand(imageName string, port int) string {
 
 // printSummary writes the post-build instructions to stdout.
 // When outputDir is non-empty the path to the retained artifacts is shown.
-func printSummary(imageName string, port int, outputDir, buildDir, runCmd string) {
+func printSummary(imageName string, port int, outputDir, buildDir, runCmd string, localBinary bool) {
 	fmt.Println()
 	fmt.Println("Docker image built successfully!")
 	fmt.Println()
@@ -386,7 +362,9 @@ func printSummary(imageName string, port int, outputDir, buildDir, runCmd string
 		fmt.Println()
 		fmt.Printf("  Artifacts saved to: %s\n", buildDir)
 		fmt.Printf("    Dockerfile        %s/Dockerfile\n", buildDir)
-		fmt.Printf("    Linux binary      %s/azctl\n", buildDir)
+		if localBinary {
+			fmt.Printf("    Linux binary      %s/azctl\n", buildDir)
+		}
 		fmt.Printf("    Workspace files   %s/workspace/\n", buildDir)
 		fmt.Printf("    Run command       %s/run-command.txt\n", buildDir)
 	}

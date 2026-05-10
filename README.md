@@ -43,7 +43,7 @@ Given a folder containing:
 
 | Tool | Why | Install |
 |------|-----|---------|
-| **Go 1.21+** | Required only if building from source | [go.dev](https://go.dev) |
+| **Go 1.21+** | Required only if building from source (`go install`) | [go.dev](https://go.dev) |
 | **Docker** | Required only if running in a containerized environment | [docs.docker.com/get-docker](https://docs.docker.com/get-docker/) |
 | **Node.js + npx** *(optional)* | Enables the Spectral validator for in-depth Arazzo checks | [nodejs.org](https://nodejs.org) |
 
@@ -384,10 +384,12 @@ The server is now live at `http://localhost:8080/mcp`. To connect it to an MCP c
 
 ## Dockerization
 
-Use the `--docker` flag to cross-compile the server and package it into a self-contained Docker image.
+Use the `--docker` flag to package the server into a self-contained Docker image — no Go toolchain needed.
 
-> **Note:** `--docker` requires a working Go toolchain and the `go.mod` file to be reachable from the current directory.
-> It is designed for development workflows, not for downloaded release binaries.
+- **On Linux**: `azctl` copies itself into the Docker build context (it's already a Linux binary).
+- **On macOS / Windows**: the generated Dockerfile downloads the correct Linux release binary from GitHub during `docker build`, so only Docker is required on your machine.
+
+> **Requires**: Docker running locally. The `metadata.Version` baked into the binary must match a published GitHub release (i.e. a tagged release build, not a local dev build).
 
 ```bash
 # Build a Docker image from an Arazzo file
